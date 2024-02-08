@@ -1,0 +1,68 @@
+name: Code Checks
+
+run-name: Code Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  
+jobs:
+
+  Test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+      
+      - name: Cache Requirements
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.11
+        
+      - name: Install requirements
+        run: |
+          pip install -r requirements.txt
+          
+      - name: Run Pytest
+        run: |
+          pytest
+
+  Lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+      
+      - name: Cache Requirements
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.11
+        
+      - name: Install requirements
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run pylint
+        run: |
+          pylint --fail-under=8 *.py
