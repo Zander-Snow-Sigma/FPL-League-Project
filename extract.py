@@ -36,6 +36,9 @@ def get_latest_gameweek() -> int:
         for gw in gameweeks:
             if gw['is_current']:
                 return gw['id']
+            
+def add_nums(a, b):
+    return a + b
 
 
 if __name__ == "__main__":
