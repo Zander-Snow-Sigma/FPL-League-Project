@@ -4,3 +4,4 @@ venv
 
 # Testing
 .pytest_cache
+__pycache__
