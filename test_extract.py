@@ -1,8 +1,8 @@
 """Unit tests for the extract script."""
 
-from extract import add_nums
+from extract import get_league_name
 
 
-def test_add_nums():
-    """Tests for add function."""
-    assert add_nums(1, 2) == 3
+def test_get_league_name():
+    raw_data = {'league': {'name': "test name"}, 'other': 'test'}
+    assert get_league_name(raw_data) == "test name"
