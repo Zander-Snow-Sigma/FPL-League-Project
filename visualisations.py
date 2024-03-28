@@ -52,7 +52,7 @@ def get_manager_captains_chart(manager: str, captain_picks: pl.DataFrame) -> alt
 
 
 def get_overall_rankings_chart(score_data: pl.DataFrame) -> alt.Chart:
-    """Returns a graph."""
+    """Returns a line chart of overall rankings for each manager over the season."""
 
     chart = alt.Chart(score_data, height=700).mark_line().encode(
         color=alt.Color('Manager ID:N'),
@@ -62,4 +62,19 @@ def get_overall_rankings_chart(score_data: pl.DataFrame) -> alt.Chart:
                  alt.Tooltip('Points', title='Total Points')]
     )
 
+    return chart
+
+
+def get_chips_chart(chip_data: pl.DataFrame) -> alt.Chart:
+    """Returns a bar chart of chip usage over the season."""
+
+    chart = alt.Chart(chip_data).mark_bar().encode(
+        x=alt.X('player_name', axis=None),
+        y=alt.Y('points', title='Score'),
+        color=alt.Color('player_name', title='Manager'),
+        column=alt.Column('chip', title=None, header=alt.Header(
+            titleOrient='bottom', labelOrient='bottom', labelFontSize=15)),
+        tooltip=[alt.Tooltip('player_name', title='Manager'),
+                 alt.Tooltip('points', title='Score')]
+    ).properties(width=200)
     return chart

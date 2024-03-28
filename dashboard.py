@@ -6,7 +6,8 @@ from extract import get_raw_league_data, get_league_name, get_manager_data
 from components import (render_initial_page,
                         render_captains_tab,
                         render_league_rankings_tab,
-                        render_overall_rankings_tab)
+                        render_overall_rankings_tab,
+                        render_chip_usage_tab)
 
 
 def reset_session() -> None:
@@ -37,8 +38,8 @@ if __name__ == "__main__":
 
         st.title(league_name)
 
-        tab1, tab2, tab3 = st.tabs(
-            ['League Rankings', 'Captain Performance', 'Overall Rankings'])
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ['League Rankings', 'Captain Performance', 'Overall Rankings', 'Chip Usage'])
 
         manager_data = get_manager_data(league_data)
 
@@ -50,3 +51,6 @@ if __name__ == "__main__":
 
         with tab3:
             render_overall_rankings_tab(manager_data)
+
+        with tab4:
+            render_chip_usage_tab(manager_data)

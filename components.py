@@ -6,11 +6,13 @@ import streamlit as st
 from extract import (get_league_captain_picks,
                      get_season_league_rankings,
                      get_overall_rankings_data,
-                     get_latest_gameweek)
+                     get_latest_gameweek,
+                     get_league_chip_data)
 
 from visualisations import (get_manager_captains_chart,
                             get_league_rankings_chart,
-                            get_overall_rankings_chart)
+                            get_overall_rankings_chart,
+                            get_chips_chart)
 
 
 def render_initial_page() -> None:
@@ -91,3 +93,15 @@ def render_overall_rankings_tab(manager_data: pl.DataFrame) -> None:
         gameweek_chart_data)
 
     st.altair_chart(overall_rankings_chart, use_container_width=True)
+
+
+def render_chip_usage_tab(manager_data: pl.DataFrame) -> None:
+    """Renders the chip usage tab."""
+
+    st.header("Chip Usage")
+
+    chip_data = get_league_chip_data(manager_data)
+
+    chips_chart = get_chips_chart(chip_data)
+
+    st.altair_chart(chips_chart)

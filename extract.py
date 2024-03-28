@@ -20,6 +20,9 @@ GW_PICKS_URL = "https://fantasy.premierleague.com/api/entry/7251561/event/8/pick
 
 MANAGER_COLS = ['entry', 'player_name', 'entry_name']
 
+CHIP_CONVERSIONS = {'3xc': 'Triple Captain',
+                    'freehit': 'Free Hit', 'bboost': 'Bench Boost'}
+
 
 def get_raw_league_data(league_code: int) -> dict:
     """Returns a python dictionary of the raw data for a given league."""
@@ -277,7 +280,58 @@ def get_overall_rankings_data(manager_data: pl.DataFrame) -> pl.DataFrame:
     return cum_gameweeks_df
 
 
+def get_manager_chip_data(manager_id: int, session: requests.Session) -> dict:
+    """Returns a dictionary of manager chip scores."""
+
+    chip_data = []
+
+    # chip_data = {'manager_id': manager_id, 'wildcard_1': None, 'wildard_2': None,
+    #              '3xc': None, 'bboost': None, 'freehit': None}
+
+    for gw in list(range(1, get_latest_gameweek() + 1)):
+        res = session.get(
+            f"{MANAGER_BASE_URL}/{manager_id}/event/{gw}/picks")
+        if res.status_code != 200:
+            print(res.status_code)
+            raise RequestException(f"{res.status_code} error")
+        data = res.json()
+        if data.get('active_chip'):
+            if data['active_chip'] == 'wildcard':
+                if gw < 21:
+                    chip_data.append(
+                        {'manager_id': manager_id, 'chip': 'Wildcard 1', 'points': data['entry_history']['points']})
+                    continue
+                else:
+                    chip_data.append(
+                        {'manager_id': manager_id, 'chip': 'Wildcard 2', 'points': data['entry_history']['points']})
+                    continue
+            chip_data.append(
+                {'manager_id': manager_id, 'chip': CHIP_CONVERSIONS[data['active_chip']], 'points': data['entry_history']['points']})
+    return chip_data
+
+
+def get_league_chip_data(manager_data: pl.DataFrame) -> pl.DataFrame:
+    """Returns the chip data for every manager in the league."""
+
+    chip_data = []
+
+    with requests.Session() as session:
+        for manager_id in manager_data['manager_id']:
+            chip_data += get_manager_chip_data(manager_id, session)
+
+    chip_data = pl.DataFrame(chip_data)
+
+    chip_data = chip_data.join(manager_data, on='manager_id')
+
+    return chip_data
+
+
 if __name__ == "__main__":
 
     raw_league = get_raw_league_data(19070)
-    print(raw_league)
+
+    manager_data = get_manager_data(raw_league)
+
+    chip_data = get_league_chip_data(manager_data)
+
+    print(chip_data)
