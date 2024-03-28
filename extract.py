@@ -1,4 +1,8 @@
-"""Extract script for FPL League Pipeline."""
+"""Functions which extract data for the Streamlit app."""
+
+from concurrent.futures import ThreadPoolExecutor
+from itertools import repeat
+import numpy
 
 import altair as alt
 import polars as pl
@@ -74,10 +78,14 @@ def get_player_data() -> pl.DataFrame:
     raise RequestException("Error - could not access the FPL API.")
 
 
-def get_captain(manager_id: int, gw: int, player_data: pl.DataFrame) -> pl.DataFrame:
+def get_captain(
+        manager_id: int,
+        gw: int,
+        player_data: pl.DataFrame,
+        session: requests.Session) -> pl.DataFrame:
     """Returns the player ID of the managers captain for a given gameweek."""
 
-    res = requests.get(
+    res = session.get(
         f"{MANAGER_BASE_URL}/{manager_id}/event/{gw}/picks", timeout=10)
 
     if res.status_code == 200:
@@ -94,7 +102,10 @@ def get_captain(manager_id: int, gw: int, player_data: pl.DataFrame) -> pl.DataF
     raise RequestException("Error - could not access FPL API.")
 
 
-def get_manager_captain_picks(manager_id: int, player_data: pl.DataFrame) -> pl.DataFrame:
+def get_manager_captain_picks(
+        manager_id: int,
+        player_data: pl.DataFrame,
+        session: requests.Session) -> pl.DataFrame:
     """Returns the captain picks for a manager."""
 
     latest_gw = get_latest_gameweek()
@@ -102,7 +113,7 @@ def get_manager_captain_picks(manager_id: int, player_data: pl.DataFrame) -> pl.
     captain_picks = pl.DataFrame()
 
     for gw in range(1, latest_gw + 1):
-        captain = get_captain(manager_id, gw, player_data)
+        captain = get_captain(manager_id, gw, player_data, session)
         captain = captain.with_columns(
             pl.lit(gw).alias("gameweek")
         )
@@ -135,10 +146,10 @@ def get_manager_prev_scores(manager_id: int) -> pl.DataFrame:
     raise ValueError("Error - invalid manager ID provided.")
 
 
-def get_player_score(player_id: int, gw: int) -> int:
+def get_player_score(player_id: int, gw: int, session: requests.Session) -> int:
     """Returns the score of a player in a given gameweek."""
 
-    res = requests.get(f"{GAMEWEEK_BASE_URL}/{gw}/live", timeout=10)
+    res = session.get(f"{GAMEWEEK_BASE_URL}/{gw}/live", timeout=10)
 
     if res.status_code != 200:
         raise RequestException("Error - could not access FPL API.")
@@ -148,20 +159,6 @@ def get_player_score(player_id: int, gw: int) -> int:
     player = next(player for player in players if player['id'] == player_id)
 
     return player['stats']['total_points']
-
-
-def make_scores_graph(score_data: pl.DataFrame) -> alt.Chart:
-    """Returns a graph."""
-
-    graph = alt.Chart(score_data, height=700).mark_line().encode(
-        color=alt.Color('Manager ID:N'),
-        x=alt.X('Gameweek:N'),
-        y=alt.Y('Points:Q', scale=alt.Scale(zero=False)),
-        tooltip=[alt.Tooltip('Manager ID', title='Manager'),
-                 alt.Tooltip('Points', title='Total Points')]
-    )
-
-    return graph
 
 
 def get_gw_manager_data(gameweek: int, manager_id: int):
@@ -177,111 +174,110 @@ def get_gw_manager_data(gameweek: int, manager_id: int):
     return content
 
 
-def get_league_rankings_for_gw(manager_data: pl.DataFrame, gameweek: int, session: requests.Session) -> dict:
+def get_league_rankings_for_gw(
+        manager_data: pl.DataFrame,
+        gameweek: int,
+        session: requests.Session) -> dict:
     """Returns the league standings for a given gameweek."""
 
     points = {}
 
     for manager_id in manager_data['manager_id']:
         res = session.get(
-            f"{MANAGER_BASE_URL}/{manager_id}/event/{gameweek}/picks")
+            f"{MANAGER_BASE_URL}/{manager_id}/event/{gameweek}/picks", timeout=10)
         if res.status_code != 200:
+            print(res.status_code)
+            print(res.headers)
             raise ConnectionError(
                 f"Could not retrieve gameweek {gameweek} data for manager {manager_id}")
         data = res.json()
         total_points = data['entry_history']['total_points']
         points[manager_id] = total_points
+
     rankings = [{"manager_id": key, "rank": rank, "gameweek": gameweek} for rank, key in enumerate(
         sorted(points, key=points.get, reverse=True), 1)]
+
     return rankings
+
+
+def get_season_league_rankings(manager_data: pl.DataFrame) -> pl.DataFrame:
+    """Returns a dataframe of league rankings over the season."""
+
+    league_size = manager_data['manager_id'].count()
+
+    current_gw = get_latest_gameweek()
+    chunks = (current_gw // 5) + 1
+    gameweeks = list(range(1, current_gw + 1))
+    gameweek_chunks = numpy.array_split(gameweeks, chunks)
+
+    rankings = []
+
+    if league_size < 10:
+
+        for gws in gameweek_chunks:
+            with requests.Session() as session:
+                with ThreadPoolExecutor() as executor:
+                    rankings += list(executor.map(get_league_rankings_for_gw, repeat(
+                        manager_data), gws, repeat(session)))
+
+        rankings = [item for row in rankings for item in row]
+
+    else:
+        with requests.Session() as session:
+            with ThreadPoolExecutor() as executor:
+                for gw in range(1, current_gw + 1):
+                    rankings += executor.submit(get_league_rankings_for_gw,
+                                                manager_data, gw, session).result()
+
+    rankings_df = pl.DataFrame(rankings)
+
+    rankings_data = rankings_df.join(manager_data, on='manager_id')
+
+    return rankings_data
+
+
+def get_league_captain_picks(manager_data: pl.DataFrame) -> pl.DataFrame:
+    """Returns a dataframe of every manager's captain for each gameweek and their score."""
+
+    player_data = get_player_data()
+
+    captain_picks_df = pl.DataFrame()
+
+    with requests.Session() as session:
+        for manager_id in manager_data["manager_id"]:
+            temp_df = get_manager_captain_picks(
+                manager_id, player_data, session)
+            captain_picks_df = pl.concat([captain_picks_df, temp_df])
+
+        captain_picks_df = captain_picks_df.with_columns(
+            pl.struct(['id', 'gameweek']).map_elements(
+                lambda x: get_player_score(x['id'], x['gameweek'], session)
+            ).alias('player_score'))
+
+    captain_picks_df = captain_picks_df.join(
+        manager_data,
+        left_on=pl.col("manager_id").cast(pl.Int64),
+        right_on=pl.col("manager_id").cast(pl.Int64))
+
+    return captain_picks_df
+
+
+def get_overall_rankings_data(manager_data: pl.DataFrame) -> pl.DataFrame:
+    """Returns the overall rankings data for each manager over the season."""
+
+    gameweek_df = pl.DataFrame()
+
+    for manager_id in manager_data["manager_id"]:
+        manager_df = get_manager_prev_scores(manager_id)
+        gameweek_df = pl.concat([gameweek_df, manager_df])
+
+    cum_gameweeks_df = gameweek_df.select(pl.col('Gameweek'), pl.col(
+        'Manager ID'), pl.col('Points').cum_sum().over('Manager ID'))
+
+    return cum_gameweeks_df
 
 
 if __name__ == "__main__":
 
     raw_league = get_raw_league_data(19070)
-    # print(raw_league)
-
-    manager_data = get_manager_data(raw_league)
-    print(manager_data)
-
-    # gw_rankings = get_league_rankings_for_gw(manager_data, 28)
-
-    # current_gw = get_latest_gameweek()
-
-    # rankings = []
-    # for gw in range(1, current_gw + 1):
-    #     rankings += get_league_rankings_for_gw(manager_data, gw)
-    # rankings_df = pl.DataFrame(rankings)
-    # print(rankings_df)
-
-    # rankings_data = rankings_df.join(manager_data, on='manager_id')
-
-    # rank_chart = alt.Chart(rankings_data).mark_line().encode(
-    #     x=alt.X('gameweek', title='Gameweek'),
-    #     y=alt.Y('rank', title='League Rank', sort='-y'),
-    #     color=alt.Color('player_name', title='Manager')
-    # )
-
-    # player_data = get_player_data()
-
-    # captain_picks_df = pl.DataFrame()
-
-    # for id in manager_data["entry"]:
-    #     temp_df = get_manager_captain_picks(id, player_data)
-    #     captain_picks_df = pl.concat([captain_picks_df, temp_df])
-
-    # captain_picks_df = captain_picks_df.with_columns(
-    #     pl.struct(['id', 'gameweek']).map_elements(lambda x: get_player_score(x['id'], x['gameweek'])).alias('player_score'))
-
-    # print(captain_picks_df)
-
-    # captain_picks_df.write_csv("captain_picks.csv")
-
-    captain_picks_df = pl.read_csv("captain_picks.csv")
-
-    chart = alt.Chart(captain_picks_df).mark_bar().encode(
-        x=alt.X('Manager ID:N', axis=None),
-        y=alt.Y('player_score:Q', title="Captain Score"),
-        color='Manager ID:N',
-        tooltip='web_name:N',
-        column=alt.Column("gameweek:N", header=alt.Header(
-            title="Gameweek", titleOrient="bottom", labelOrient="bottom"))
-    )
-
-    st.altair_chart(chart)
-
-    # GW = 19
-
-    # captain = get_captain(7251561, GW, player_data)
-
-    # print(captain)
-
-    # score = get_player_score(captain_id, GW)
-
-    # print(score)
-
-    # gameweek_df = pl.DataFrame()
-
-    # for id in manager_data["entry"]:
-    #     temp_df = get_manager_prev_scores(id)
-    #     gameweek_df = pl.concat([gameweek_df, temp_df])
-
-    # print(gameweek_df)
-
-    # test = gameweek_df.group_by("Manager ID")
-
-    # print(test)
-
-    # graph = make_scores_graph(gameweek_df)
-
-    # st.altair_chart(graph, use_container_width=True)
-
-    # print(graph)
-
-    # league_name = get_league_name(raw_league)
-
-    # print(league_name)
-
-    # manager_scores = get_manager_prev_scores(7251561)
-
-    # print(manager_scores)
+    print(raw_league)
