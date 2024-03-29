@@ -51,7 +51,7 @@ def get_manager_captains_chart(manager: str, captain_picks: pl.DataFrame) -> alt
     return captains_chart
 
 
-def get_overall_rankings_chart(score_data: pl.DataFrame) -> alt.Chart:
+def get_points_progression_chart(score_data: pl.DataFrame) -> alt.Chart:
     """Returns a line chart of overall rankings for each manager over the season."""
 
     chart = alt.Chart(score_data, height=700).mark_line().encode(
