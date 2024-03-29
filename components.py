@@ -5,13 +5,13 @@ import streamlit as st
 
 from extract import (get_league_captain_picks,
                      get_season_league_rankings,
-                     get_overall_rankings_data,
+                     get_points_progression_data,
                      get_latest_gameweek,
                      get_league_chip_data)
 
 from visualisations import (get_manager_captains_chart,
                             get_league_rankings_chart,
-                            get_overall_rankings_chart,
+                            get_points_progression_chart,
                             get_chips_chart)
 
 
@@ -26,6 +26,7 @@ def render_initial_page() -> None:
                     2. Navigate to your league's homepage
                     3. Copy the number in the URL as shown below
                     """)
+        st.image("./images/league_code.png", width=600)
 
 
 def render_captains_tab(manager_data: pl.DataFrame) -> None:
@@ -76,23 +77,30 @@ def render_league_rankings_tab(manager_data: pl.DataFrame) -> None:
     st.altair_chart(rankings_chart, use_container_width=True)
 
 
-def render_overall_rankings_tab(manager_data: pl.DataFrame) -> None:
-    """Renders the overall rankings tab."""
+def render_points_progression_tab(manager_data: pl.DataFrame) -> None:
+    """Renders the points progression tab."""
 
-    st.header('Overall Rankings')
+    st.header('Points Progression')
 
-    gameweek_df = get_overall_rankings_data(manager_data)
+    if st.session_state.get('points_progression') is None:
+
+        with st.spinner('Fetching points...'):
+
+            points_progression_data = get_points_progression_data(manager_data)
+
+        st.session_state['points_progression'] = points_progression_data
+    points_progression_data = st.session_state['points_progression']
 
     gameweeks = st.slider('Select Gameweeks', min_value=1,
                           max_value=get_latest_gameweek(), value=(1, get_latest_gameweek()))
 
-    gameweek_chart_data = gameweek_df.filter(
+    filtered_points_data = points_progression_data.filter(
         pl.col('Gameweek').is_between(gameweeks[0], gameweeks[1]))
 
-    overall_rankings_chart = get_overall_rankings_chart(
-        gameweek_chart_data)
+    points_progression_chart = get_points_progression_chart(
+        filtered_points_data)
 
-    st.altair_chart(overall_rankings_chart, use_container_width=True)
+    st.altair_chart(points_progression_chart, use_container_width=True)
 
 
 def render_chip_usage_tab(manager_data: pl.DataFrame) -> None:
@@ -100,7 +108,15 @@ def render_chip_usage_tab(manager_data: pl.DataFrame) -> None:
 
     st.header("Chip Usage")
 
-    chip_data = get_league_chip_data(manager_data)
+    if st.session_state.get('chip_data') is None:
+
+        with st.spinner("Fetching chip data..."):
+
+            chip_data = get_league_chip_data(manager_data)
+
+        st.session_state['chip_data'] = chip_data
+
+    chip_data = st.session_state['chip_data']
 
     chips_chart = get_chips_chart(chip_data)
 
