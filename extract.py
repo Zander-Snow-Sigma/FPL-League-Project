@@ -5,6 +5,7 @@ from itertools import repeat
 import numpy
 
 import altair as alt
+import pandas as pd
 import polars as pl
 import requests
 from requests.exceptions import RequestException
@@ -265,7 +266,7 @@ def get_league_captain_picks(manager_data: pl.DataFrame) -> pl.DataFrame:
     return captain_picks_df
 
 
-def get_overall_rankings_data(manager_data: pl.DataFrame) -> pl.DataFrame:
+def get_points_progression_data(manager_data: pl.DataFrame) -> pl.DataFrame:
     """Returns the overall rankings data for each manager over the season."""
 
     gameweek_df = pl.DataFrame()
@@ -324,6 +325,18 @@ def get_league_chip_data(manager_data: pl.DataFrame) -> pl.DataFrame:
     chip_data = chip_data.join(manager_data, on='manager_id')
 
     return chip_data
+
+
+def get_rankings(league_data: dict) -> pl.DataFrame:
+    """Gets the league rankings."""
+
+    rankings_data = []
+
+    for manager in league_data['standings']['results']:
+        rankings_data.append(
+            {'Rank': manager['rank'], 'Manager': manager['player_name'], 'Team Name': manager['entry_name'], 'Total Points': manager['total'], 'Latest Score': manager['event_total']})
+
+    return pl.DataFrame(rankings_data)
 
 
 if __name__ == "__main__":
