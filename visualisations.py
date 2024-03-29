@@ -55,10 +55,10 @@ def get_points_progression_chart(score_data: pl.DataFrame) -> alt.Chart:
     """Returns a line chart of overall rankings for each manager over the season."""
 
     chart = alt.Chart(score_data, height=700).mark_line().encode(
-        color=alt.Color('Manager ID:N'),
-        x=alt.X('Gameweek:N'),
+        color=alt.Color('player_name:N', title='Manager'),
+        x=alt.X('Gameweek:N', axis=alt.Axis(grid=True)),
         y=alt.Y('Points:Q', scale=alt.Scale(zero=False)),
-        tooltip=[alt.Tooltip('Manager ID', title='Manager'),
+        tooltip=[alt.Tooltip('player_name:N', title='Manager'),
                  alt.Tooltip('Points', title='Total Points')]
     )
 
@@ -77,4 +77,19 @@ def get_chips_chart(chip_data: pl.DataFrame) -> alt.Chart:
         tooltip=[alt.Tooltip('player_name', title='Manager'),
                  alt.Tooltip('points', title='Score')]
     ).properties(width=200)
+    return chart
+
+
+def get_overall_rankings_chart(rankings_data: pl.DataFrame) -> alt.Chart:
+    """Returns a line chart of overall rank progression for each manager in the league."""
+
+    max_rank = rankings_data.sort(by='Overall Rank', descending=True)[
+        0]['Overall Rank'][0]
+
+    chart = alt.Chart(rankings_data).mark_line().encode(
+        x=alt.X('Gameweek:N', axis=alt.Axis(grid=True)),
+        y=alt.Y('Overall Rank', scale=alt.Scale(
+            type='log', domainMax=max_rank)),
+        color=alt.Color('player_name', title='Manager')
+    ).properties(height=500)
     return chart

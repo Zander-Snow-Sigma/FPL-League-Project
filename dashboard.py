@@ -1,14 +1,15 @@
 """Streamlit dashboard showing visualisations for an FPL Classic League."""
 
 import streamlit as st
-import polars as pl
 
-from extract import get_raw_league_data, get_league_name, get_manager_data, get_rankings, get_latest_gameweek
+from extract import get_raw_league_data, get_manager_data
 from components import (render_initial_page,
+                        render_summary_section,
                         render_captains_tab,
                         render_league_rankings_tab,
                         render_points_progression_tab,
-                        render_chip_usage_tab)
+                        render_chip_usage_tab,
+                        render_overall_rankings_tab)
 
 
 def reset_session() -> None:
@@ -18,6 +19,7 @@ def reset_session() -> None:
     st.session_state['captains_data'] = None
     st.session_state['chip_data'] = None
     st.session_state['points_progression'] = None
+    st.session_state['overall_rankings'] = None
 
 
 if __name__ == "__main__":
@@ -37,37 +39,16 @@ if __name__ == "__main__":
 
     else:
         league_data = get_raw_league_data(league_code)
-        league_name = get_league_name(league_data)
 
-        # top_manager = league_data['standings']['results'][0]['player_name']
+        render_summary_section(league_data)
 
-        # top_manager_delta = league_data['standings']['results'][0]['last_rank'] - \
-        #     league_data['standings']['results'][0]['last_rank']
-
-        st.title(league_name)
-
-        rankings = get_rankings(league_data)
-
-        top_manager = rankings.sort(by='Rank')[0]
-
-        top_latest_manager = rankings.sort(
-            by='Latest Score', descending=True)[0]
-
-        col1, col2 = st.columns([1, 2])
-
-        with col1:
-
-            st.metric(
-                'Leading Manager', top_manager['Manager'][0], delta=top_manager['Total Points'][0])
-            st.metric(f'GW {get_latest_gameweek()} Top Manager',
-                      top_latest_manager['Manager'][0], delta=top_latest_manager['Latest Score'][0])
-
-        with col2:
-
-            st.dataframe(rankings, hide_index=True, use_container_width=True)
-
-        tab1, tab2, tab3, tab4 = st.tabs(
-            ['League Rankings', 'Captain Performance', 'Points Progression', 'Chip Usage'])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            'League Rankings',
+            'Captain Performance',
+            'Points Progression',
+            'Chip Usage',
+            'Overall Rankings'
+        ])
 
         manager_data = get_manager_data(league_data)
 
@@ -82,3 +63,6 @@ if __name__ == "__main__":
 
         with tab4:
             render_chip_usage_tab(manager_data)
+
+        with tab5:
+            render_overall_rankings_tab(manager_data)

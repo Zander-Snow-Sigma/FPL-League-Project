@@ -4,20 +4,15 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
 import numpy
 
-import altair as alt
-import pandas as pd
 import polars as pl
 import requests
 from requests.exceptions import RequestException
-import streamlit as st
 
 
 FPL_INFO_URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
 LEAGUE_BASE_URL = "https://fantasy.premierleague.com/api/leagues-classic"
 MANAGER_BASE_URL = "https://fantasy.premierleague.com/api/entry"
 GAMEWEEK_BASE_URL = "https://fantasy.premierleague.com/api/event"
-
-GW_PICKS_URL = "https://fantasy.premierleague.com/api/entry/7251561/event/8/picks/"
 
 MANAGER_COLS = ['entry', 'player_name', 'entry_name']
 
@@ -275,8 +270,11 @@ def get_points_progression_data(manager_data: pl.DataFrame) -> pl.DataFrame:
         manager_df = get_manager_prev_scores(manager_id)
         gameweek_df = pl.concat([gameweek_df, manager_df])
 
+    gameweek_df = gameweek_df.join(manager_data, left_on=pl.col(
+        'Manager ID').cast(pl.Int64), right_on='manager_id')
+
     cum_gameweeks_df = gameweek_df.select(pl.col('Gameweek'), pl.col(
-        'Manager ID'), pl.col('Points').cum_sum().over('Manager ID'))
+        'player_name'), pl.col('Points').cum_sum().over('Manager ID'))
 
     return cum_gameweeks_df
 
@@ -299,15 +297,22 @@ def get_manager_chip_data(manager_id: int, session: requests.Session) -> dict:
         if data.get('active_chip'):
             if data['active_chip'] == 'wildcard':
                 if gw < 21:
-                    chip_data.append(
-                        {'manager_id': manager_id, 'chip': 'Wildcard 1', 'points': data['entry_history']['points']})
+                    chip_data.append({
+                        'manager_id': manager_id,
+                        'chip': 'Wildcard 1',
+                        'points': data['entry_history']['points']
+                    })
                     continue
-                else:
-                    chip_data.append(
-                        {'manager_id': manager_id, 'chip': 'Wildcard 2', 'points': data['entry_history']['points']})
-                    continue
-            chip_data.append(
-                {'manager_id': manager_id, 'chip': CHIP_CONVERSIONS[data['active_chip']], 'points': data['entry_history']['points']})
+                chip_data.append({
+                    'manager_id': manager_id,
+                    'chip': 'Wildcard 2',
+                    'points': data['entry_history']['points']
+                })
+                continue
+            chip_data.append({
+                'manager_id': manager_id,
+                'chip': CHIP_CONVERSIONS[data['active_chip']],
+                'points': data['entry_history']['points']})
     return chip_data
 
 
@@ -327,24 +332,84 @@ def get_league_chip_data(manager_data: pl.DataFrame) -> pl.DataFrame:
     return chip_data
 
 
-def get_rankings(league_data: dict) -> pl.DataFrame:
+def get_rankings(league_data: dict, session: requests.Session) -> pl.DataFrame:
     """Gets the league rankings."""
 
-    rankings_data = []
+    rankings_data = league_data['standings']['results']
 
-    for manager in league_data['standings']['results']:
-        rankings_data.append(
-            {'Rank': manager['rank'], 'Manager': manager['player_name'], 'Team Name': manager['entry_name'], 'Total Points': manager['total'], 'Latest Score': manager['event_total']})
+    rankings_data = pl.DataFrame(rankings_data)
 
-    return pl.DataFrame(rankings_data)
+    rankings_data = rankings_data.with_columns(pl.col('entry').apply(
+        lambda x: get_manager_rank(x, session)).alias('Overall Rank'))
+
+    rankings_data = rankings_data.select(
+        pl.col('rank').alias('Rank'),
+        pl.col('player_name').alias('Manager'),
+        pl.col('entry_name').alias('Team Name'),
+        pl.col('total').alias('Total Points'),
+        pl.col('event_total').alias('Latest Score'),
+        pl.col('Overall Rank')
+    )
+
+    return rankings_data
+
+
+def get_manager_prev_rankings(manager_id: int) -> pl.DataFrame:
+    """Returns managers previous rankings for this season."""
+
+    res = requests.get(f"{MANAGER_BASE_URL}/{manager_id}/history", timeout=10)
+
+    if res.status_code == 200:
+        gameweeks = res.json()['current']
+
+        gameweek_df = pl.DataFrame(gameweeks)
+
+        gameweek_df = gameweek_df.rename(
+            {"event": "Gameweek", "overall_rank": "Overall Rank"})
+
+        gameweek_df = gameweek_df.with_columns(
+            pl.lit(manager_id).alias('Manager ID'))
+
+        return gameweek_df[["Gameweek", "Overall Rank", "Manager ID"]]
+
+    raise ValueError("Error - invalid manager ID provided.")
+
+
+def get_overall_rankings_data(manager_data: pl.DataFrame) -> pl.DataFrame:
+    """Returns the overall rankings data for each manager in the league."""
+
+    rankings_data = pl.DataFrame()
+
+    for manager_id in manager_data['manager_id']:
+        manager_df = get_manager_prev_rankings(manager_id)
+        rankings_data = pl.concat([rankings_data, manager_df])
+
+    rankings_data = rankings_data.with_columns(
+        rankings_data['Manager ID'].cast(pl.Int64))
+
+    rankings_data = rankings_data.join(
+        manager_data, left_on='Manager ID', right_on='manager_id')
+    return rankings_data
+
+
+def get_manager_rank(manager_id: int, session: requests.Session) -> int:
+    """Returns the manager's current rank."""
+
+    res = session.get(f"{MANAGER_BASE_URL}/{manager_id}")
+
+    if res.status_code == 200:
+        data = res.json()
+        return data['summary_overall_rank']
+    raise RequestException(f"{res.status_code} error")
 
 
 if __name__ == "__main__":
 
-    raw_league = get_raw_league_data(19070)
+    # raw_league = get_raw_league_data(19070)
 
-    manager_data = get_manager_data(raw_league)
+    # manager_data = get_manager_data(raw_league)
 
-    chip_data = get_league_chip_data(manager_data)
+    # rankings_data = get_overall_rankings_data(manager_data)
 
-    print(chip_data)
+    # print(rankings_data)
+    pass

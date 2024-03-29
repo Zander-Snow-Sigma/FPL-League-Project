@@ -1,5 +1,6 @@
 """Components for the Streamlit app."""
 
+import requests
 import polars as pl
 import streamlit as st
 
@@ -7,12 +8,16 @@ from extract import (get_league_captain_picks,
                      get_season_league_rankings,
                      get_points_progression_data,
                      get_latest_gameweek,
-                     get_league_chip_data)
+                     get_league_chip_data,
+                     get_overall_rankings_data,
+                     get_rankings,
+                     get_league_name)
 
 from visualisations import (get_manager_captains_chart,
                             get_league_rankings_chart,
                             get_points_progression_chart,
-                            get_chips_chart)
+                            get_chips_chart,
+                            get_overall_rankings_chart)
 
 
 def render_initial_page() -> None:
@@ -27,6 +32,38 @@ def render_initial_page() -> None:
                     3. Copy the number in the URL as shown below
                     """)
         st.image("./images/league_code.png", width=600)
+
+
+def render_summary_section(league_data: dict) -> None:
+    """Renders the summary section."""
+
+    league_name = get_league_name(league_data)
+
+    st.title(league_name)
+
+    with requests.Session() as session:
+        rankings = get_rankings(league_data, session)
+
+    top_manager = rankings.sort(by='Rank')[0]
+
+    top_latest_manager = rankings.sort(
+        by='Latest Score', descending=True)[0]
+
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+
+        st.metric(
+            'Leading Manager',
+            top_manager['Manager'][0],
+            delta=f"{top_manager['Total Points'][0]} points")
+
+        st.metric(f'GW {get_latest_gameweek()} Top Manager',
+                  top_latest_manager['Manager'][0],
+                  delta=f"{top_latest_manager['Latest Score'][0]} points")
+
+    with col2:
+        st.dataframe(rankings, hide_index=True)
 
 
 def render_captains_tab(manager_data: pl.DataFrame) -> None:
@@ -121,3 +158,36 @@ def render_chip_usage_tab(manager_data: pl.DataFrame) -> None:
     chips_chart = get_chips_chart(chip_data)
 
     st.altair_chart(chips_chart)
+
+
+def render_overall_rankings_tab(manager_data: pl.DataFrame) -> None:
+    """Renders the overall rankings tab."""
+
+    st.header("Overall Rankings")
+
+    if st.session_state.get('overall_rankings') is None:
+
+        with st.spinner('Fetching rankings...'):
+            rankings_data = get_overall_rankings_data(manager_data)
+
+        st.session_state['overall_rankings'] = rankings_data
+
+    rankings_data = st.session_state['overall_rankings']
+
+    gameweeks = st.slider('Select Gameweeks',
+                          value=(1, get_latest_gameweek()),
+                          key='rankings_slider')
+
+    filtered_rankings_data = rankings_data.filter(
+        pl.col('Gameweek').is_between(gameweeks[0], gameweeks[1]))
+
+    selected_players = st.multiselect(
+        'Select Managers',
+        options=manager_data['player_name'],
+        default=manager_data['player_name'].to_list())
+
+    filtered_rankings_data = filtered_rankings_data.filter(
+        pl.col('player_name').is_in(selected_players))
+
+    rankings_chart = get_overall_rankings_chart(filtered_rankings_data)
+    st.altair_chart(rankings_chart, use_container_width=True)
