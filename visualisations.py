@@ -41,7 +41,7 @@ def get_manager_captains_chart(manager: str, captain_picks: pl.DataFrame) -> alt
         pl.col('player_name') == manager)
 
     captains_chart = alt.Chart(manager_captains).mark_bar().encode(
-        x=alt.X('gameweek:N'),
+        x=alt.X('gameweek:N', title='Gameweek'),
         y=alt.Y('player_score:Q', title="Captain Score"),
         color=alt.Color('web_name:N', title='Player'),
         tooltip=[alt.Tooltip('web_name', title='Player'),
