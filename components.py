@@ -33,6 +33,12 @@ def render_initial_page() -> None:
                     """)
         st.image("./images/league_code.png", width=600)
 
+    st.error(
+        """
+        Note, this is optimised for smaller leagues
+
+        If your league has more than **15 participants**, please expect longer waiting times""", icon="🚨")
+
 
 def render_summary_section(league_data: dict) -> None:
     """Renders the summary section."""
@@ -175,6 +181,8 @@ def render_overall_rankings_tab(manager_data: pl.DataFrame) -> None:
     rankings_data = st.session_state['overall_rankings']
 
     gameweeks = st.slider('Select Gameweeks',
+                          min_value=1,
+                          max_value=get_latest_gameweek(),
                           value=(1, get_latest_gameweek()),
                           key='rankings_slider')
 
@@ -186,8 +194,10 @@ def render_overall_rankings_tab(manager_data: pl.DataFrame) -> None:
         options=manager_data['player_name'],
         default=manager_data['player_name'].to_list())
 
-    filtered_rankings_data = filtered_rankings_data.filter(
-        pl.col('player_name').is_in(selected_players))
+    if selected_players:
 
-    rankings_chart = get_overall_rankings_chart(filtered_rankings_data)
-    st.altair_chart(rankings_chart, use_container_width=True)
+        filtered_rankings_data = filtered_rankings_data.filter(
+            pl.col('player_name').is_in(selected_players))
+
+        rankings_chart = get_overall_rankings_chart(filtered_rankings_data)
+        st.altair_chart(rankings_chart, use_container_width=True)
