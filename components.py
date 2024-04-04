@@ -1,5 +1,8 @@
 """Components for the Streamlit app."""
 
+import logging
+import time
+
 import requests
 import polars as pl
 import streamlit as st
@@ -48,7 +51,12 @@ def render_summary_section(league_data: dict) -> None:
     st.title(league_name)
 
     with requests.Session() as session:
-        rankings = get_rankings(league_data, session)
+        start = time.time()
+        with st.spinner('Fetching league data...'):
+            rankings = get_rankings(league_data, session)
+        end = time.time()
+        time_elapsed = end - start
+        logging.info(f'Summary section: {time_elapsed}s')
 
     top_manager = rankings.sort(by='Rank')[0]
 
@@ -79,10 +87,18 @@ def render_captains_tab(manager_data: pl.DataFrame) -> None:
 
     if st.session_state.get('captains_data') is None:
 
+        start = time.time()
+
         with st.spinner('Fetching captain data...'):
 
             captain_picks_df = get_league_captain_picks(manager_data)
             st.session_state['captains_data'] = captain_picks_df
+
+        end = time.time()
+
+        time_elapsed = end - start
+
+        logging.info(f"Captain tab: {time_elapsed}s")
 
     captain_picks_df: pl.DataFrame = st.session_state['captains_data']
 
@@ -101,8 +117,12 @@ def render_league_rankings_tab(manager_data: pl.DataFrame) -> None:
     st.header('League Rankings')
 
     if st.session_state.get('rankings_data') is None:
-        with st.spinner('Fetching league data...'):
+        start = time.time()
+        with st.spinner('Fetching league rankings...'):
             rankings_data = get_season_league_rankings(manager_data)
+        end = time.time()
+        time_elapsed = end - start
+        logging.info(f'League rankings tab: {time_elapsed}')
         st.session_state['rankings_data'] = rankings_data
 
     rankings_data = st.session_state['rankings_data']
@@ -127,9 +147,15 @@ def render_points_progression_tab(manager_data: pl.DataFrame) -> None:
 
     if st.session_state.get('points_progression') is None:
 
+        start = time.time()
+
         with st.spinner('Fetching points...'):
 
             points_progression_data = get_points_progression_data(manager_data)
+
+        end = time.time()
+        time_elapsed = end - start
+        logging.info(f'Points progression tab: {time_elapsed}')
 
         st.session_state['points_progression'] = points_progression_data
     points_progression_data = st.session_state['points_progression']
@@ -153,9 +179,17 @@ def render_chip_usage_tab(manager_data: pl.DataFrame) -> None:
 
     if st.session_state.get('chip_data') is None:
 
+        start = time.time()
+
         with st.spinner("Fetching chip data..."):
 
             chip_data = get_league_chip_data(manager_data)
+
+        end = time.time()
+
+        time_elapsed = end - start
+
+        logging.info(f'Chips tab: {time_elapsed}')
 
         st.session_state['chip_data'] = chip_data
 
@@ -173,8 +207,14 @@ def render_overall_rankings_tab(manager_data: pl.DataFrame) -> None:
 
     if st.session_state.get('overall_rankings') is None:
 
+        start = time.time()
+
         with st.spinner('Fetching rankings...'):
             rankings_data = get_overall_rankings_data(manager_data)
+
+        end = time.time()
+        time_elapsed = end - start
+        logging.info(f'Overall points tab: {time_elapsed}')
 
         st.session_state['overall_rankings'] = rankings_data
 

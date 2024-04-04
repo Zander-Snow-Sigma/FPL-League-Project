@@ -1,5 +1,7 @@
 """Streamlit dashboard showing visualisations for an FPL Classic League."""
 
+import logging
+
 import streamlit as st
 
 from extract import get_raw_league_data, get_manager_data
@@ -23,6 +25,9 @@ def reset_session() -> None:
 
 
 if __name__ == "__main__":
+
+    logging.basicConfig(level=logging.INFO, filename='app.log',
+                        format='%(asctime)s - %(message)s', datefmt='%d-%m-%Y %H:%M:%S')
 
     st.set_page_config(page_title="FPL Lab",
                        page_icon="🧪", layout='wide')
