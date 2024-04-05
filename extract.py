@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
 import numpy
+import time
 
 import polars as pl
 import requests
@@ -94,9 +95,14 @@ def get_captain(
         captain_id = next(pick['element']
                           for pick in picks if pick['is_captain'])
 
-        test = player_data.filter(id=captain_id)
+        captain_info = player_data.filter(id=captain_id)
 
-        return test
+        player_score = get_player_score(captain_info['id'][0], gw, session)
+
+        captain_data = {'id': captain_info['id'][0],
+                        'web_name': captain_info['web_name'][0], 'gameweek': gw, 'manager_id': manager_id, 'player_score': player_score}
+
+        return captain_data
 
     raise RequestException("Error - could not access FPL API.")
 
@@ -109,17 +115,34 @@ def get_manager_captain_picks(
 
     latest_gw = get_latest_gameweek()
 
-    captain_picks = pl.DataFrame()
+    # captain_picks = pl.DataFrame()
 
-    for gw in range(1, latest_gw + 1):
-        captain = get_captain(manager_id, gw, player_data, session)
-        captain = captain.with_columns(
-            pl.lit(gw).alias("gameweek")
-        )
-        captain = captain.with_columns(
-            pl.lit(manager_id).alias("manager_id")
-        )
-        captain_picks = pl.concat([captain_picks, captain])
+    # for gw in range(1, latest_gw + 1):
+    #     captain = get_captain(manager_id, gw, player_data, session)
+    #     captain = captain.with_columns(
+    #         pl.lit(gw).alias("gameweek")
+    #     )
+    #     captain = captain.with_columns(
+    #         pl.lit(manager_id).alias("manager_id")
+    #     )
+    #     captain_picks = pl.concat([captain_picks, captain])
+
+    current_gw = get_latest_gameweek()
+    chunks = (current_gw // 5) + 1
+    gameweeks = list(range(1, current_gw + 1))
+    gameweek_chunks = numpy.array_split(gameweeks, chunks)
+
+    captain_picks = []
+    for gws in gameweek_chunks:
+        with ThreadPoolExecutor() as executor:
+
+            captain_picks.append(list(executor.map(get_captain, repeat(
+                manager_id), gws, repeat(player_data), repeat(session))))
+
+    captain_picks = [item for row in captain_picks for item in row]
+
+    # for gw in range(1, latest_gw + 1):
+    #     captain_picks.append(get_captain(manager_id, gw, player_data, session))
 
     return captain_picks
 
@@ -240,18 +263,33 @@ def get_league_captain_picks(manager_data: pl.DataFrame) -> pl.DataFrame:
 
     player_data = get_player_data()
 
-    captain_picks_df = pl.DataFrame()
+    # captain_picks_df = pl.DataFrame()
+
+    # with requests.Session() as session:
+    #     for manager_id in manager_data["manager_id"]:
+    #         temp_df = get_manager_captain_picks(
+    #             manager_id, player_data, session)
+    #         captain_picks_df = pl.concat([captain_picks_df, temp_df])
+
+    captain_picks = []
 
     with requests.Session() as session:
-        for manager_id in manager_data["manager_id"]:
-            temp_df = get_manager_captain_picks(
-                manager_id, player_data, session)
-            captain_picks_df = pl.concat([captain_picks_df, temp_df])
 
-        captain_picks_df = captain_picks_df.with_columns(
-            pl.struct(['id', 'gameweek']).map_elements(
-                lambda x: get_player_score(x['id'], x['gameweek'], session)
-            ).alias('player_score'))
+        for manager_id in manager_data["manager_id"]:
+            captain_picks += get_manager_captain_picks(
+                manager_id, player_data, session)
+
+        captain_picks_df = pl.DataFrame(captain_picks)
+
+        # start = time.time()
+
+        # captain_picks_df = captain_picks_df.with_columns(
+        #     pl.struct(['id', 'gameweek']).map_elements(
+        #         lambda x: get_player_score(x['id'], x['gameweek'], session)
+        #     ).alias('player_score'))
+
+        # end = time.time()
+        # print(end - start)
 
     captain_picks_df = captain_picks_df.join(
         manager_data,
@@ -321,9 +359,18 @@ def get_league_chip_data(manager_data: pl.DataFrame) -> pl.DataFrame:
 
     chip_data = []
 
+    manager_ids = manager_data['manager_id'].to_list()
+
     with requests.Session() as session:
-        for manager_id in manager_data['manager_id']:
-            chip_data += get_manager_chip_data(manager_id, session)
+        with ThreadPoolExecutor() as executor:
+
+            chip_data += list(executor.map(get_manager_chip_data,
+                              manager_ids, repeat(session)))
+
+    chip_data = [item for row in chip_data for item in row]
+
+    # for manager_id in manager_data['manager_id']:
+    #     chip_data += get_manager_chip_data(manager_id, session)
 
     chip_data = pl.DataFrame(chip_data)
 
