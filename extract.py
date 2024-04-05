@@ -102,8 +102,6 @@ def get_captain(
         captain_data = {'id': captain_info['id'][0],
                         'web_name': captain_info['web_name'][0], 'gameweek': gw, 'manager_id': manager_id, 'player_score': player_score}
 
-        print(captain_data)
-
         return captain_data
 
     raise RequestException("Error - could not access FPL API.")
@@ -145,8 +143,6 @@ def get_manager_captain_picks(
 
     # for gw in range(1, latest_gw + 1):
     #     captain_picks.append(get_captain(manager_id, gw, player_data, session))
-
-    print(captain_picks)
 
     return captain_picks
 
@@ -282,8 +278,6 @@ def get_league_captain_picks(manager_data: pl.DataFrame) -> pl.DataFrame:
         for manager_id in manager_data["manager_id"]:
             captain_picks += get_manager_captain_picks(
                 manager_id, player_data, session)
-
-        print(captain_picks)
 
         captain_picks_df = pl.DataFrame(captain_picks)
 
