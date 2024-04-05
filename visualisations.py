@@ -76,7 +76,7 @@ def get_chips_chart(chip_data: pl.DataFrame) -> alt.Chart:
             titleOrient='bottom', labelOrient='bottom', labelFontSize=15)),
         tooltip=[alt.Tooltip('player_name', title='Manager'),
                  alt.Tooltip('points', title='Score')]
-    ).properties(width=200)
+    ).properties(width=150)
     return chart
 
 
