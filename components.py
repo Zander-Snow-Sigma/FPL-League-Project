@@ -10,6 +10,7 @@ import streamlit as st
 from extract import (get_league_captain_picks,
                      get_season_league_rankings,
                      get_points_progression_data,
+                     get_points_average_data,
                      get_latest_gameweek,
                      get_league_chip_data,
                      get_overall_rankings_data,
@@ -20,7 +21,8 @@ from visualisations import (get_manager_captains_chart,
                             get_league_rankings_chart,
                             get_points_progression_chart,
                             get_chips_chart,
-                            get_overall_rankings_chart)
+                            get_overall_rankings_chart,
+                            get_points_average_chart)
 
 
 def render_initial_page() -> None:
@@ -160,6 +162,8 @@ def render_points_progression_tab(manager_data: pl.DataFrame) -> None:
         st.session_state['points_progression'] = points_progression_data
     points_progression_data = st.session_state['points_progression']
 
+    print(points_progression_data)
+
     gameweeks = st.slider('Select Gameweeks', min_value=1,
                           max_value=get_latest_gameweek(), value=(1, get_latest_gameweek()))
 
@@ -170,6 +174,38 @@ def render_points_progression_tab(manager_data: pl.DataFrame) -> None:
         filtered_points_data)
 
     st.altair_chart(points_progression_chart, use_container_width=True)
+
+
+def render_points_average_tab(manager_data: pl.DataFrame) -> None:
+    """Renders the points average tab."""
+
+    st.header('Rolling Points Average')
+
+    if st.session_state.get('points_average') is None:
+
+        start = time.time()
+
+        with st.spinner('Fetching averages...'):
+
+            average_points_data = get_points_average_data(manager_data)
+
+        end = time.time()
+        time_elapsed = end - start
+        logging.info(f'Points average tab: {time_elapsed}')
+
+        st.session_state['points_average'] = average_points_data
+    average_points_data = st.session_state['points_average']
+
+    gameweeks = st.slider('Select Gameweeks', min_value=1,
+                          max_value=get_latest_gameweek(), value=(1, get_latest_gameweek()), key='averages')
+
+    filtered_points_data = average_points_data.filter(
+        pl.col('Gameweek').is_between(gameweeks[0], gameweeks[1]))
+
+    average_points_chart = get_points_average_chart(
+        filtered_points_data)
+
+    st.altair_chart(average_points_chart, use_container_width=True)
 
 
 def render_chip_usage_tab(manager_data: pl.DataFrame) -> None:
