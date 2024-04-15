@@ -11,7 +11,8 @@ from components import (render_initial_page,
                         render_league_rankings_tab,
                         render_points_progression_tab,
                         render_chip_usage_tab,
-                        render_overall_rankings_tab)
+                        render_overall_rankings_tab,
+                        render_points_average_tab)
 
 
 def reset_session() -> None:
@@ -22,6 +23,7 @@ def reset_session() -> None:
     st.session_state['chip_data'] = None
     st.session_state['points_progression'] = None
     st.session_state['overall_rankings'] = None
+    st.session_state['points_average'] = None
 
 
 if __name__ == "__main__":
@@ -47,10 +49,11 @@ if __name__ == "__main__":
 
         render_summary_section(league_data)
 
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             'League Rankings',
             'Captain Performance',
             'Points Progression',
+            'Points Average',
             'Chip Usage',
             'Overall Rankings'
         ])
@@ -67,7 +70,10 @@ if __name__ == "__main__":
             render_points_progression_tab(manager_data)
 
         with tab4:
-            render_chip_usage_tab(manager_data)
+            render_points_average_tab(manager_data)
 
         with tab5:
+            render_chip_usage_tab(manager_data)
+
+        with tab6:
             render_overall_rankings_tab(manager_data)

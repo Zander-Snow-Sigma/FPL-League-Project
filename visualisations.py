@@ -93,3 +93,18 @@ def get_overall_rankings_chart(rankings_data: pl.DataFrame) -> alt.Chart:
         color=alt.Color('player_name', title='Manager')
     ).properties(height=500)
     return chart
+
+
+def get_points_average_chart(score_data: pl.DataFrame) -> alt.Chart:
+    """Returns a line chart of average points for each manager over the season."""
+
+    chart = alt.Chart(score_data, height=700).mark_line().encode(
+        color=alt.Color('player_name:N', title='Manager'),
+        x=alt.X('Gameweek:N', axis=alt.Axis(grid=True)),
+        y=alt.Y('Points:Q', scale=alt.Scale(
+            zero=False), title='Average Points'),
+        tooltip=[alt.Tooltip('player_name:N', title='Manager'),
+                 alt.Tooltip('Points', title='Rolling Average Points')]
+    )
+
+    return chart
