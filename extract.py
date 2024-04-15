@@ -330,8 +330,6 @@ def get_points_average_data(manager_data: pl.DataFrame) -> pl.DataFrame:
 
     gameweek_df = get_points_data(manager_data)
 
-    print(gameweek_df)
-
     av_gameweeks_df = gameweek_df.select(pl.col('Gameweek'), pl.col(
         'player_name'), pl.col('Points').rolling_mean(window_size=get_latest_gameweek(), min_periods=1))
 
@@ -473,14 +471,16 @@ def get_manager_rank(manager_id: int, session: requests.Session) -> int:
 
 if __name__ == "__main__":
 
-    raw_league = get_raw_league_data(19070)
+    # raw_league = get_raw_league_data(19070)
 
-    manager_data = get_manager_data(raw_league)
+    # manager_data = get_manager_data(raw_league)
 
-    av_data = get_points_average_data(manager_data)
+    # av_data = get_points_average_data(manager_data)
 
-    print(av_data)
+    # print(av_data)
 
     # rankings_data = get_overall_rankings_data(manager_data)
 
     # print(rankings_data)
+
+    pass

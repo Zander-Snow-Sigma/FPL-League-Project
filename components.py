@@ -162,8 +162,6 @@ def render_points_progression_tab(manager_data: pl.DataFrame) -> None:
         st.session_state['points_progression'] = points_progression_data
     points_progression_data = st.session_state['points_progression']
 
-    print(points_progression_data)
-
     gameweeks = st.slider('Select Gameweeks', min_value=1,
                           max_value=get_latest_gameweek(), value=(1, get_latest_gameweek()))
 
