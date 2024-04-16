@@ -33,6 +33,17 @@ def get_raw_league_data(league_code: int) -> dict:
     raise RequestException("Error - invalid league code.")
 
 
+def is_valid_code(league_code: int) -> bool:
+    """Checks if the given league code is valid."""
+
+    res = requests.get(
+        f"{LEAGUE_BASE_URL}/{league_code}/standings", timeout=10)
+
+    if res.status_code == 200:
+        return True
+    return False
+
+
 def get_manager_data(league_data: dict) -> pl.DataFrame:
     """Returns data for each manager in a given league."""
 

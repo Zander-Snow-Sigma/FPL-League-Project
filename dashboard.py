@@ -4,7 +4,7 @@ import logging
 
 import streamlit as st
 
-from extract import get_raw_league_data, get_manager_data
+from extract import get_raw_league_data, get_manager_data, is_valid_code
 from components import (render_initial_page,
                         render_summary_section,
                         render_captains_tab,
@@ -41,8 +41,12 @@ if __name__ == "__main__":
             label="Enter league code", step=1, value=None)
         st.form_submit_button("Submit", on_click=reset_session)
 
-    if not league_code:
+    if league_code is None:
         render_initial_page()
+
+    elif is_valid_code(league_code) is False:
+        render_initial_page()
+        st.sidebar.error("Invalid league code", icon="🚨", )
 
     else:
         league_data = get_raw_league_data(league_code)
